@@ -25,6 +25,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 */
+// ------------------ BACKUP SETTINGS ------------------
+
+// Backup folder
+define('pbt_backupfolder', './backups/');
 
 // ----------------- LOGIN INFORMATION -----------------
 
@@ -34,38 +38,47 @@ define('pbt_username', 'admin');
 // Password
 define('pbt_password', 'admin');
 
+// ---------------------- TIME ZONE --------------------
+
+// Time zone
+date_default_timezone_set('Europe/Kyiv');
+
 // ---------------------- MAIN CODE --------------------
 
 set_time_limit(0);
 
-class ZipBackup
+class Backuper
 {
-    
-    function __construct()
+    function __construct($path)
     {
-        $this->zip();
+
+        $this->path = $path;
+        $this->file_name = date("Y-m-d-H-i-s").'_'.$this->generate(8).'_backup';
+        if(!is_dir(pbt_backupfolder)){
+            mkdir(pbt_backupfolder);
+        }
     }
 
-    function zip(){
-        $rootPath = realpath('.');
-        $zip = new ZipArchive();
-        $file_name = $this->generate(8);
-        $zip->open($file_name.'_backup.zip', ZipArchive::CREATE | ZipArchive::OVERWRITE);
-        $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($rootPath),
-            RecursiveIteratorIterator::LEAVES_ONLY
-        );
-        foreach ($files as $name => $file)
-        {
-            if (!$file->isDir())
-            {
-                $filePath = $file->getRealPath();
-                $relativePath = substr($filePath, strlen($rootPath) + 1);
-                $zip->addFile($filePath, $relativePath);
-            }
-        }
-        $zip->close();
-        $this->download($file_name.'_backup.zip');
+    public function tar($type){
+        $rootPath = realpath($this->path);
+        $file = pbt_backupfolder.$this->file_name.'.tar';
+        $exclude = '/^(?!(.*backups))(.*)$/i'; 
+        $p = new PharData($file);
+        $p->buildFromDirectory($rootPath,$exclude);
+        $p->compress($type);
+        unset($p);
+        Phar::unlinkArchive($file);
+    }
+
+    public function zip(){
+        $rootPath = realpath($this->path);
+        $file = pbt_backupfolder.$this->file_name.'.tar';
+        $exclude = '/^(?!(.*backups))(.*)$/i'; 
+        $p = new PharData($file);
+        $p->buildFromDirectory($rootPath,$exclude);
+        $p->convertToData(Phar::ZIP);
+        unset($p);
+        Phar::unlinkArchive($file);
     }
 
     private function generate($length = 10) {
@@ -77,24 +90,34 @@ class ZipBackup
         }
         return $randomString;
     }
-
-    private function download($filename){
-        header('Content-Description: File Transfer');
-        header('Content-Type: application/octet-stream');
-        header("Cache-Control: no-cache, must-revalidate");
-        header("Expires: 0");
-        header('Content-Disposition: attachment; filename="'.basename($filename).'"');
-        header('Content-Length: ' . filesize($filename));
-        header('Pragma: public');
-        flush();
-        header("Location: $filename");
-    }
-
 }
 
 // ------------------- MAIN PROGRAM --------------------
 
-$islogged = (($_GET['username'] == pbt_username) and ($_GET['password'] == pbt_password));
+$islogged = (($_POST['username'] == pbt_username) and ($_POST['password'] == pbt_password));
+
+$iserror = false;
+
+if (isset($_POST['type']) and isset($_POST['folder']) and isset($_POST['submit'])){
+    $type = $_POST['type'];
+    $folder = $_POST['folder'];
+    $b = new Backuper($folder);
+    switch ($type) {
+        case 'zip':
+            $b->zip();
+            break;
+        case 'targz':
+            $b->tar(Phar::GZ);
+            break;
+        case 'tarbz2':
+            $b->tar(Phar::BZ2);
+            break;
+        default:
+            $iserror = true;
+            break;
+    }
+    header("Location:".$_SERVER['HTTP_REFERER']);
+}
 
 ?>
 
@@ -108,56 +131,94 @@ $islogged = (($_GET['username'] == pbt_username) and ($_GET['password'] == pbt_p
             padding: 0;
         }
 
-        .pdt-login-container {
+        .pbt-login-container {
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 10px;
         }
-        .pdt-login-box {
+        .pbt-login-box {
             width: 20em;
             height: auto;
-            min-height: 10em;
             border: 1px Solid Black;
             border-radius: 2px;
             background: #FCF9F7;
             padding: 18px;
         }
-        .pdt-login-form {
+        .pbt-login-form {
             /* */
         }
-        .pdt-login-field {
+        .pbt-login-form > input[type=submit] {
+            float: right;
+        }
+        .pbt-login-field {
             font-family: monospace;
         }
-        .pdt-login-title {
+        .pbt-login-title,.pbt-main-title {
             font-family: Arial;
-            
+        }
+        .pbt-main-status {
+            font-family: monospace;
+            font-size: 8pt;
+        }
+        .pbt-main-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+        .pbt-main-box {
+            width: 80em;
+            height: auto;
+            border: 1px Solid Black;
+            border-radius: 2px;
+            background: #FCF9F7;
+            padding: 18px;
+        }
+        .pbt-main-content {
+            font-family: monospace;
+        }
+        .pbt-main-backups, .pbt-main-tool {
+            border: 1px Solid Black;
+            border-radius: 2px;
+            background: #FCFCFC;
+            padding: 18px;
+            box-shadow: 0px 0px 1px Black;
+            margin: 8px;
         }
         input {
-            display: block;
             margin: 4px 0px;
             font-family: monospace;
         }
-        input[type=submit] {
-            float: right;
+        hr {
+            margin: 8px;
+            border-top: 1px Solid Black;
+        }
+        td, th {
+            padding: 0px 8px;
+        }
+        th {
+            text-align: left;
         }
     </style>
+    <link href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAIZSURBVDhPfVNNaxNRFD0TkhqSTNJ2iFJqVFBLWhAFyUKIkE1BF8WtK9GNUcRFf4E/oEgXJbTdFJfdCYIUEYpiWiliKFrKIIoLq6G2k3aSNP1KTe95ndFJU3uGy5v7ce579777tEajAS/eW7giS1YkI5KkTWCKvBEZv2ZgXlkc/E0gxKAsw/X67oPKWgkblTJ2d7aVL9B2AmE9Cr2jE35/YExMg5Joiz6VwCG/3ijb6ZXiT8y/fYWTiXOgb+mriUisHecvXUUwrCPe1Y1wNJaX+H4m8TGLYJjk379+COkPvn0u4OP0FF5OjEDTNJgfZvF8dAi1qg3GMJYcEn2smcfmzl7s1eu49+QpUv0DGLg/iKq9ju8LB+UzlhxyeYIsa+bOXiQu9sIfaFP/7EG8+wys4pLSGUuOIMsEGTbsMBryeREMhbG9WXM0qCYLMkyQdLt9HGxrRW7BcDS4N5R0m9iCgjTxS2FO/S/OvYO9uowLl1NK98IvYkqNLadI9PTh08w08i8mRdNw/dZtGHKFLtgXgckE+VBET9ql5gTx02dx485D1Mo2QtGYY/0H4XDJs4RctNOQ+26uxtWPItNHjiDn42zLeD4zTnUpJ7Eqw3IcGEsOue4oR8Q+VVlfS1vLxZaZcMGdSdbbOzjKNyVB1fuYmGREJuxuuWTJ2FaaHhNr5rG5s5gek0zf/57zIxHOu/c5c9ccj60sCsA+SiDmbpG2LJQAAAAASUVORK5CYII=" rel="icon" type="image/x-icon" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
     <?php if(!$islogged): ?>
-    <div class="pdt-login-container">
-        <div class="pdt-login-box">
-            <form class="pdt-login-form">
-                <h1 class="pdt-login-title">
+    <div class="pbt-login-container">
+        <div class="pbt-login-box">
+            <form class="pbt-login-form" method="POST">
+                <h1 class="pbt-login-title">
                     PHP Backup Tool
                 </h1>
-                <div class="pdt-login-field">
+                <div class="pbt-login-field">
                     <label for="apikey">
                         Username:
                     </label>
                     <input type="text" name="username" required="true">
                 </div>
-                <div class="pdt-login-field">
+                <div class="pbt-login-field">
                     <label for="password">
                         Password:
                     </label>
@@ -168,6 +229,74 @@ $islogged = (($_GET['username'] == pbt_username) and ($_GET['password'] == pbt_p
         </div>
     </div>
     <?php else: ?>
+    <div class="pbt-main-container">
+        <div class="pbt-main-box">
+            <div class="pbt-main-header">
+                <h1 class="pbt-main-title">PHP Backup Tool</h1>
+                <span class="pbt-main-status">
+                    Logged in as <?php echo pbt_username ?>
+                    <a href>Log out</a>        
+                </span>
+            </div>
+            <hr>
+            <div class="pbt-main-content">
+                Available backups:
+                <table class="pbt-main-backups">
+                    <?php 
+                        $backups = @scandir(pbt_backupfolder);
+                        if ($backups){
+                            ?>
+                            <tr>
+                                <th>Date:</th>
+                                <th>ID:</th>
+                                <th>Size:</th>
+                                <th>Filename:</th>
+                            </tr>
+                            <?php
+                            foreach ($backups as $file) {
+                                if (!is_dir($file)){
+                                    echo "<tr>";
+                                    echo "<td>".explode('_',$file)[0]."</td>";
+                                    echo "<td>".explode('_',$file)[1]."</td>";
+                                    echo "<td>".((@filesize($file)/1024)/1024)."MB</td>";
+                                    echo "<td><a href=\"".pbt_backupfolder."$file\">$file</a></td>";
+                                    echo "</tr>";
+                                }
+                            }
+                        } else {
+                            echo "<tr><td>No available backups</td></tr>";
+                        }
+                        
+                    ?>
+                </table>
+                Backup tool:
+                <form method="POST" class="pbt-main-tool">
+                    <input type="hidden" name="username" value="<?php echo $_POST['username'] ?>">
+                    <input type="hidden" name="password" value="<?php echo $_POST['password'] ?>">
+                    <div class="pbt-form-field">
+                        <label for="type">
+                            Type:
+                        </label>
+                        <select name="type">
+                            <option value="zip">.zip</option>
+                            <option value="targz">.tar.gz</option>
+                            <option value="tarbz2">.tar.bz2</option>
+                        </select>
+                    </div>
+                    <div class="pbt-form-field">
+                        <label for="folder">
+                            Folder:
+                        </label>
+                        <input type="text" name="folder" value=".">
+                    </div>
+                    <div class="pbt-form-field">
+                        <input type="submit" name="submit">
+                    </div>
+                    
+                </form>
+            </div>
+        </div>
+    </div>
     <?php endif; ?>
 </body>
 </html>
