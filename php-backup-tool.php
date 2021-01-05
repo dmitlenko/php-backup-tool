@@ -29,13 +29,10 @@ SOFTWARE.
 // ----------------- LOGIN INFORMATION -----------------
 
 // User name
-define('username', 'admin');
+define('pbt_username', 'admin');
 
 // Password
-define('password', 'mypass');
-
-// API key
-define('apikey'  , 'y8FvqcWHiroJPR5rKNZ4BHEZ22aRdDns');
+define('pbt_password', 'admin');
 
 // ---------------------- MAIN CODE --------------------
 
@@ -95,6 +92,10 @@ class ZipBackup
 
 }
 
+// ------------------- MAIN PROGRAM --------------------
+
+$islogged = (($_GET['username'] == pbt_username) and ($_GET['password'] == pbt_password));
+
 ?>
 
 <!DOCTYPE html>
@@ -143,6 +144,7 @@ class ZipBackup
     </style>
 </head>
 <body>
+    <?php if(!$islogged): ?>
     <div class="pdt-login-container">
         <div class="pdt-login-box">
             <form class="pdt-login-form">
@@ -151,9 +153,9 @@ class ZipBackup
                 </h1>
                 <div class="pdt-login-field">
                     <label for="apikey">
-                        API key:
+                        Username:
                     </label>
-                    <input type="text" name="apikey" required="true">
+                    <input type="text" name="username" required="true">
                 </div>
                 <div class="pdt-login-field">
                     <label for="password">
@@ -165,5 +167,7 @@ class ZipBackup
             </form>
         </div>
     </div>
+    <?php else: ?>
+    <?php endif; ?>
 </body>
 </html>
